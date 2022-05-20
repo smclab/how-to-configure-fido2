@@ -1,0 +1,81 @@
+version: '3.9'
+
+services:
+  liferay:
+    hostname: techblog.portal.local
+    image: liferay/dxp:7.4.13-u25
+    environment:
+      - LIFERAY_JPDA_ENABLED=true
+      - LIFERAY_JDBC_PERIOD_DEFAULT_PERIOD_DRIVER_UPPERCASEC_LASS_UPPERCASEN_AME=org.postgresql.Driver
+      - LIFERAY_JDBC_PERIOD_DEFAULT_PERIOD_URL=jdbc:postgresql://postgres:5432/lportal
+      - LIFERAY_JDBC_PERIOD_DEFAULT_PERIOD_USERNAME=liferay
+      - LIFERAY_JDBC_PERIOD_DEFAULT_PERIOD_PASSWORD=my-secret-pw
+      - LIFERAY_MAIL_PERIOD_SESSION_PERIOD_MAIL_PERIOD_SMTP_PERIOD_HOST=mail
+      - LIFERAY_SETUP_PERIOD_WIZARD_PERIOD_ENABLED=false
+      - LIFERAY_WORKSPACE_ENVIRONMENT=local
+      - LIFERAY_MAIL_PERIOD_SEND_PERIOD_BLACKLIST=noreply@domain.invalid,test@domain.invalid
+      - JAVA_VERSION=zulu11
+    ports:
+      - '8080:8080'
+      - '8000:8000'
+      - '11311:11311'
+      - '9201:9201'
+    volumes:
+      - ./configs/liferay/scripts:/mnt/liferay/scripts
+      - ./configs/liferay/files:/mnt/liferay/files
+      - ./configs/liferay/deploy:/mnt/liferay/deploy
+      - ./configs/liferay/patching:/mnt/liferay/patching
+    depends_on:
+      - postgres
+    labels:
+      - traefik.enable=true
+      - traefik.port=8080
+      - traefik.http.routers.liferay.rule=Host(`techblog.portal.local`)
+      - traefik.http.routers.liferay.entrypoints=websecure
+      - traefik.http.routers.liferay.service=liferay
+      - traefik.http.services.liferay.loadbalancer.server.port=8080
+      - traefik.http.services.liferay.loadbalancer.server.scheme=http
+      - traefik.http.services.liferay.loadbalancer.healthCheck.path=/web/guest
+      - traefik.http.services.liferay.loadbalancer.healthCheck.interval=60s
+      - traefik.http.services.liferay.loadbalancer.healthCheck.timeout=40s
+      - traefik.http.services.liferay.loadbalancer.healthCheck.scheme=http
+      - traefik.http.services.liferay.loadbalancer.healthCheck.port=8080
+      - traefik.http.routers.liferay.tls=true
+      - traefik.http.routers.liferay.tls.domains[0].main=portal.local
+      - traefik.http.routers.liferay.tls.domains[0].sans=*.portal.local
+
+  postgres:
+    image: postgres:12.8
+    environment:
+      - POSTGRES_PASSWORD=my-secret-pw
+      - POSTGRES_USER=liferay
+      - POSTGRES_DB=lportal
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    ports:
+      - 6432:5432
+  mail:
+    image: miladrahimi/fake-smtp
+    working_dir: /output/
+    volumes:
+      - ./bundles/mail/:/output/
+    ports:
+      - 25
+
+  traefik:
+      image: traefik:2.6.6
+      volumes:
+        - /var/run/docker.sock:/var/run/docker.sock
+        - ./configs/traefik/configuration/:/configuration/
+      command:
+        - --log.level=INFO
+        - --entrypoints.websecure.address=:443
+        - --providers.docker=true
+        - --providers.docker.exposedbydefault=false
+        - --providers.file.directory=/configuration/
+        - --providers.file.watch=true
+        - --api.dashboard=true
+        - --api.insecure=true
+        - --serversTransport.insecureSkipVerify=true
+      ports:
+        - 443:443
+        - 9080:8080

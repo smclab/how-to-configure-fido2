@@ -1,0 +1,8 @@
+#
+# Certificates Definition
+#  1. For end-point techblog.portal.local
+#
+
+[[tls.certificates]]
+   certFile = "/configuration/files/techblog.portal.local_crt.pem"
+   keyFile = "/configuration/files/techblog.portal.local_key.pem"
